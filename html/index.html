@@ -1,0 +1,209 @@
+<html>
+  <head>
+    <script src="Async.js"></script>
+    <style type="text/css">
+      body
+      {
+        background: black;
+        background-position: center;
+        background-repeat: no-repeat;
+        background-size: cover;
+        transition: 3s;
+      }
+
+      .preload
+      {
+        width: 1px;
+        height: 1px;
+        opacity: 0.05;
+      }
+    </style>
+  </head>
+  <body style="background: black">
+    <img class="preload" id="imgPrevious" />
+    <img class="preload" id="imgNext" />
+    <script type="text/javascript">
+      new function()
+      {
+        var INTERVAL = 5000;
+
+        var imgPrevious = document.getElementById("imgPrevious");
+        var imgNext = document.getElementById("imgNext");
+
+        var _files = [];
+        var _filesShuffled = [];
+
+        var _index = 0;
+        var _keepImage = 0;
+
+        function ArraysDiffer(a, b)
+        {
+          if (a.length != b.length)
+            return true;
+
+          for (var i = 0; i < a.length; i++)
+            if (a[i] != b[i])
+              return true;
+
+          return false;
+        }
+
+        function ExtractFocus(fileList)
+        {
+          var focus = null;
+
+          for (var i = 0; i < fileList.length; i++)
+          {
+            if (fileList[i].includes("/"))
+            {
+              if (focus == null)
+                focus = [];
+
+              focus.push(fileList[i]);
+            }
+          }
+
+          return focus;
+        }
+
+        function ShuffleFiles()
+        {
+          var avoidFirst = null;
+
+          if ((_filesShuffled != null) && (_filesShuffled.length > 0))
+            avoidFirst = _filesShuffled[_filesShuffled.length - 1];
+
+          _filesShuffled = _files.slice(0);
+
+          do
+          {
+            for (var i = _filesShuffled.length - 1; i >= 0; i--)
+            {
+              var j = Math.floor(Math.random() * (i + 1));
+
+              var tmp = _filesShuffled[i];
+              _filesShuffled[i] = _filesShuffled[j];
+              _filesShuffled[j] = tmp;
+            }
+          } while ((avoidFirst != null) && (_filesShuffled[0] == avoidFirst) && (_filesShuffled.length > 1));
+        }
+
+        function Refresh()
+        {
+          PerformAsyncRequest(
+            "cgi-bin/installation-files",
+            null,
+            function (response)
+            {
+              if (Array.isArray(response))
+              {
+                if (ArraysDiffer(_files, response))
+                {
+                  var focus = ExtractFocus(response);
+
+                  if (focus != null)
+                  {
+                    _filesShuffled = null;
+
+                    if (ArraysDiffer(focus, _files))
+                    {
+                      _files = focus;
+                      _index = 0;
+                    }
+                  }
+                  else
+                  {
+                    _files = response;
+                    _keepImage = 4;
+                    _index = 0;
+
+                    ShuffleFiles();
+                  }
+                }
+                else if (_filesShuffled != null)
+                {
+                  if (_keepImage > 0)
+                    _keepImage--;
+                  else
+                  {
+                    _keepImage = 4;
+
+                    _index++;
+
+                    if (_index >= _filesShuffled.length)
+                    {
+                      ShuffleFiles();
+                      _index = 0;
+                    }
+                  }
+                }
+
+                LoadImage();
+              }
+
+              setTimeout(Refresh, INTERVAL);
+            });
+        }
+
+        function Set()
+        {
+          return _filesShuffled || _files;
+        }
+
+        function Previous()
+        {
+          _index--;
+
+          if (_index < 0)
+          {
+            if (_filesShuffled != null)
+              ShuffleFiles();
+
+            _index = Set().length - 1;
+          }
+
+          LoadImage();
+        }
+
+        function Next()
+        {
+          _index++;
+
+          if (_index >= Set().length)
+          {
+            if (_filesShuffled != null)
+              ShuffleFiles();
+
+            _index = 0;
+          }
+
+          LoadImage();
+        }
+
+        function LoadImage()
+        {
+          var set = Set();
+
+          var previousIndex = (_index + set.length - 1) % set.length;
+          var nextIndex = (_index + 1) % set.length;
+
+          document.body.style.backgroundImage = "url(Installation/" + set[_index] + ")";
+          imgPrevious.src = "Installation/" + set[previousIndex];
+          imgNext.src = "Installation/" + set[nextIndex];
+        }
+
+        Refresh();
+
+        document.body.onclick =
+          function (event)
+          {
+            if (event.shiftKey)
+              Previous();
+            else
+              Next();
+          };
+      }
+    </script>
+  </body>
+</html>
+
